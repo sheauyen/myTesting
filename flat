@@ -1,0 +1,58 @@
+#!/bin/sh 
+
+if [ "$1" = "" ]
+then
+	cat << EOF
+usage:		flat un/pw [tables|views]
+
+example:	flat scott/tiger emp dept
+
+description:	Select over standard out all rows of table or view with 
+		columns delimited by tabs.
+EOF
+	exit
+fi
+
+
+PW=$1
+shift
+
+for X in $*
+do
+sqlplus -s $PW << EOF > /tmp/flat$$.sql
+set	wrap off
+set	feedback off
+set	pagesize 0
+set	verify off
+prompt	select
+select	lower(column_name)||'||chr(9)||'
+from	user_tab_columns
+where	table_name = upper('$X') and
+	column_id != (select max(column_id) from user_tab_columns where
+			 table_name = upper('$X'))
+order by column_id
+/
+select	lower(column_name)
+from	user_tab_columns
+where	table_name = upper('$X') and
+	column_id = (select max(column_id) from user_tab_columns where
+			 table_name = upper('$X'))
+order by column_id
+/
+prompt	from	$X
+prompt	/
+prompt	exit
+exit
+EOF
+sqlplus -s $PW << EOF
+set	wrap off
+set	feedback off
+set	pagesize 0
+set	verify off
+set trimspool on
+set linesize 5000
+start /tmp/flat$$.sql
+exit
+EOF
+rm /tmp/flat$$.sql
+done
